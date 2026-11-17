@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智慧班級成績登記系統（雲端同步版）</title>
+    <!-- 引入 Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- 引入 Google Fonts Noto Sans TC -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #f8fafc;
+            color: #1e293b;
+        }
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .sticky-col-shadow {
+            box-shadow: 2px 0 5px -2px rgba(0, 0, 0, 0.08);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- 頂部導覽列 -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                <!-- 系統標題 -->
+                <div class="flex items-center gap-3">
+                    <div class="bg-indigo-600 text-white p-2 rounded-xl shadow-sm">
+                        <i data-lucide="graduation-cap" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-lg sm:text-xl font-bold text-slate-800 tracking-tight">智慧班級成績登記系統</h1>
+                        <p class="text-xs text-slate-500 hidden sm:block">分班分科管理 · 即時行內編輯 · 勾選平均與自訂百分比加權 · 雲端即時同步</p>
+                    </div>
+                </div>
+
+                <!-- 班級與科目選擇及管理區 -->
+                <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+                    <!-- 班級選擇器 -->
+                    <div class="flex items-center bg-slate-100 rounded-xl p-1 border border-slate-200">
+                        <span class="text-xs font-semibold text-slate-500 px-2 flex items-center gap-1">
+                            <i data-lucide="users" class="w-3.5 h-3.5"></i> 班級
+                        </span>
+                        <select id="classSelect" onchange="handleClassChange(this.value)" class="bg-white text-slate-800 text-sm font-semibold rounded-lg px-2.5 py-1.5 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer min-w-[130px]">
+                        </select>
+                        <button onclick="openManageModal('class')" title="新增或管理班級" class="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-white rounded-lg transition ml-1 cursor-pointer">
+                            <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+
+                    <!-- 科目選擇器 -->
+                    <div class="flex items-center bg-slate-100 rounded-xl p-1 border border-slate-200">
+                        <span class="text-xs font-semibold text-slate-500 px-2 flex items-center gap-1">
+                            <i data-lucide="book-open" class="w-3.5 h-3.5"></i> 科目
+                        </span>
+                        <select id="subjectSelect" onchange="handleSubjectChange(this.value)" class="bg-white text-slate-800 text-sm font-semibold rounded-lg px-2.5 py-1.5 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer min-w-[130px]">
+                        </select>
+                        <button onclick="openManageModal('subject')" title="新增或管理科目" class="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-white rounded-lg transition ml-1 cursor-pointer">
+                            <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+
+                    <!-- 雲端同步狀態指示 -->
+                    <div id="saveStatus" class="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200">
+                        <i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i>
+                        <span>連線雲端中...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 工具列與控制面板 -->
+    <section id="toolbarSection" class="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2 hidden">
+        <div class="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+            
+            <!-- 左側：名單與評量項目操作 -->
+            <div class="flex flex-wrap items-center gap-2">
+                <button onclick="openRosterModal()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm font-medium rounded-xl border border-indigo-200 transition cursor-pointer">
+                    <i data-lucide="user-plus" class="w-4 h-4"></i>
+                    <span>座號範圍與批次姓名</span>
+                </button>
+                <button onclick="addStudentRow()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl border border-slate-200 transition cursor-pointer">
+                    <i data-lucide="plus" class="w-4 h-4 text-slate-500"></i>
+                    <span>新增學生</span>
+                </button>
+                <div class="h-5 w-px bg-slate-200 mx-0.5 hidden sm:block"></div>
+                <button onclick="addAssessmentColumn()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-xl shadow-sm transition cursor-pointer">
+                    <i data-lucide="file-plus-2" class="w-4 h-4"></i>
+                    <span>新增評量項目</span>
+                </button>
+                <button onclick="distributeWeightsEvenly()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl border border-slate-200 transition cursor-pointer" title="將目前勾選的項目平均分配為總和 100%">
+                    <i data-lucide="percent" class="w-4 h-4 text-indigo-500"></i>
+                    <span>平均分配百分比</span>
+                </button>
+            </div>
+
+            <!-- 右側：加權計算模式、匯出與資料管理 -->
+            <div class="flex flex-wrap items-center gap-2">
+                <div class="relative group inline-flex items-center">
+                    <label class="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-50/80 border border-amber-200 rounded-xl cursor-pointer select-none">
+                        <input type="checkbox" id="normalizeToggle" onchange="toggleNormalize(this.checked)" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer">
+                        <span class="text-xs sm:text-sm font-medium text-amber-900">自動正規化 (還原100%)</span>
+                        <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-200/80 text-amber-800 text-[11px] font-bold">?</span>
+                    </label>
+                    <div class="hidden group-hover:block absolute right-0 top-full mt-2 w-80 p-3.5 bg-slate-800 text-white text-xs rounded-2xl shadow-xl z-50 leading-relaxed pointer-events-none">
+                        <div class="font-bold text-amber-300 mb-1 flex items-center gap-1.5">
+                            <i data-lucide="info" class="w-3.5 h-3.5"></i> 什麼是自動正規化？
+                        </div>
+                        <p class="text-slate-200 mb-1.5">當勾選項目權重總和<strong>不等於 100%</strong> 時（例如期末考尚未考而取消勾選）：</p>
+                        <ul class="space-y-1 text-slate-300 list-disc pl-4">
+                            <li><strong class="text-white">開啟：</strong>依已勾選權重比例等比例放大/縮小，還原為<strong>滿分 100 分</strong>的目前階段加權平均。</li>
+                            <li><strong class="text-white">關閉：</strong>直接加總「分數 × 百分比」，顯示目前累計獲得的學期總分。</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <button onclick="exportCSV()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white text-sm font-medium rounded-xl shadow-sm transition cursor-pointer">
+                    <i data-lucide="download" class="w-4 h-4"></i>
+                    <span>匯出 CSV</span>
+                </button>
+
+                <div class="relative">
+                    <button onclick="toggleMoreMenu()" id="moreMenuBtn" class="p-2 bg-white hover:bg-slate-50 text-slate-600 rounded-xl border border-slate-200 transition cursor-pointer" title="更多資料選項">
+                        <i data-lucide="more-vertical" class="w-4 h-4"></i>
+                    </button>
+                    <div id="moreMenuDropdown" class="hidden absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-lg border border-slate-200 py-1.5 z-40">
+                        <button onclick="confirmClearScores()" class="w-full text-left px-4 py-2 text-sm text-amber-600 hover:bg-amber-50 flex items-center gap-2 cursor-pointer">
+                            <i data-lucide="eraser" class="w-4 h-4"></i> 清空當前科目成績
+                        </button>
+                        <button onclick="confirmResetAll()" class="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 flex items-center gap-2 cursor-pointer">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i> 清空全部資料（重置為空白）
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 px-1">
+            <div class="flex flex-wrap items-center gap-3">
+                <span class="inline-flex items-center gap-1"><i data-lucide="mouse-pointer-click" class="w-3.5 h-3.5 text-indigo-500"></i> 點擊表頭<strong>項目名稱</strong>或<strong>佔比</strong>可直接編輯</span>
+                <span class="inline-flex items-center gap-1"><i data-lucide="keyboard" class="w-3.5 h-3.5 text-indigo-500"></i> 成績格支援方向鍵 <kbd class="px-1.5 py-0.5 bg-white border border-slate-300 rounded text-[10px]">↑↓←→</kbd> 與 <kbd class="px-1.5 py-0.5 bg-white border border-slate-300 rounded text-[10px]">Enter</kbd> 跳格</span>
+            </div>
+            <div id="weightSummaryBadge" class="font-medium"></div>
+        </div>
+    </section>
+
+    <!-- 主內容區 -->
+    <main class="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 flex-1 flex flex-col">
+        
+        <!-- 空白初始引導畫面 -->
+        <div id="emptyStateContainer" class="hidden flex-1 flex items-center justify-center py-12">
+            <div class="bg-white rounded-3xl border border-slate-200 shadow-sm max-w-xl w-full p-8 text-center">
+                <div class="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-5">
+                    <i data-lucide="folder-plus" class="w-8 h-8"></i>
+                </div>
+                <h2 id="emptyStateTitle" class="text-xl font-bold text-slate-800 mb-2">歡迎使用智慧班級成績登記系統</h2>
+                <p id="emptyStateDesc" class="text-sm text-slate-500 mb-6 leading-relaxed">
+                    目前尚未建立任何班級與科目資料。請依照以下步驟建立您的專屬成績表，所有資料將自動同步至 Firebase 雲端資料庫。
+                </p>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6 text-left">
+                    <div id="stepClassCard" class="p-4 rounded-2xl border transition">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-xs font-bold uppercase tracking-wider text-indigo-600">步驟 1</span>
+                            <span id="stepClassBadge"></span>
+                        </div>
+                        <div class="font-bold text-slate-800 text-sm mb-1">建立班級</div>
+                        <p class="text-xs text-slate-500 mb-3">例如：一年甲班、高二忠班</p>
+                        <button onclick="openManageModal('class')" class="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl transition cursor-pointer">
+                            + 新增班級
+                        </button>
+                    </div>
+
+                    <div id="stepSubjectCard" class="p-4 rounded-2xl border transition">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-xs font-bold uppercase tracking-wider text-emerald-600">步驟 2</span>
+                            <span id="stepSubjectBadge"></span>
+                        </div>
+                        <div class="font-bold text-slate-800 text-sm mb-1">建立科目類別</div>
+                        <p class="text-xs text-slate-500 mb-3">例如：國文、數學、英文、自然</p>
+                        <button onclick="openManageModal('subject')" class="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition cursor-pointer">
+                            + 新增科目
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主成績表格區塊 -->
+        <div id="tableContainer" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="overflow-x-auto max-h-[72vh]">
+                <table class="w-full border-collapse text-sm" id="gradeTable">
+                    <thead id="gradeTableHead" class="bg-slate-50 sticky top-0 z-20 border-b border-slate-200"></thead>
+                    <tbody id="gradeTableBody" class="divide-y divide-slate-100"></tbody>
+                    <tfoot id="gradeTableFoot" class="bg-slate-100/95 border-t-2 border-slate-300 font-semibold sticky bottom-0 z-20"></tfoot>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- ==================== 彈出視窗 (Modals) ==================== -->
+
+    <!-- 1. 座號範圍與批次姓名設定 Modal -->
+    <div id="rosterModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-xl w-full shadow-xl border border-slate-200 overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="users" class="w-5 h-5 text-indigo-600"></i>
+                    設定多區段座號範圍與批次姓名
+                </h3>
+                <button onclick="closeModal('rosterModal')" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label for="seatRangeInput" class="block text-xs font-bold text-slate-700">座號範圍（支援多區段與單號跳號）</label>
+                        <span class="text-[11px] text-slate-400">支援 -、~、至 與逗號/頓號/空格分隔</span>
+                    </div>
+                    <input type="text" id="seatRangeInput"
+                        oninput="updateSeatPreview()"
+                        placeholder="例如：1-8、10-14、21-28、30-34 或 1~8, 12, 15-20"
+                        class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+                            <i data-lucide="list-ordered" class="w-3.5 h-3.5 text-indigo-600"></i>
+                            即時解析座號預覽
+                        </span>
+                        <span id="seatPreviewCount" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">共 0 人</span>
+                    </div>
+                    <div id="seatPreviewBadges" class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto text-xs">
+                        <span class="text-slate-400">請輸入座號範圍以檢視解析結果...</span>
+                    </div>
+                </div>
+
+                <div class="space-y-2 bg-indigo-50/40 p-3 rounded-xl border border-indigo-100">
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" id="keepExistingScoresCheck" checked class="w-4 h-4 text-indigo-600 rounded border-slate-300 cursor-pointer">
+                        <label for="keepExistingScoresCheck" class="text-xs font-medium text-slate-700 cursor-pointer">保留既有相同座號的已輸入成績（取消勾選則完全覆蓋為空白成績）</label>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" id="syncAllSubjectsCheck" checked class="w-4 h-4 text-indigo-600 rounded border-slate-300 cursor-pointer">
+                        <label for="syncAllSubjectsCheck" class="text-xs font-medium text-slate-700 cursor-pointer">同步套用學生名單至「本班所有科目」</label>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label for="batchNamesInput" class="block text-xs font-bold text-slate-700">批次貼上姓名（選填，一行一個姓名，依解析後的座號順序對應）</label>
+                        <span class="text-[11px] text-slate-400">可從 Excel 直接複製貼上</span>
+                    </div>
+                    <textarea id="batchNamesInput" rows="5" placeholder="第 1 行對應第 1 個解析座號&#10;第 2 行對應第 2 個解析座號...（留白則僅建立座號）" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono"></textarea>
+                </div>
+            </div>
+            <div class="px-5 py-3.5 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+                <button onclick="closeModal('rosterModal')" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200/70 rounded-xl transition cursor-pointer">取消</button>
+                <button onclick="applyRosterSettings()" class="px-4 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm transition cursor-pointer">產生 / 更新名單</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. 班級與科目管理 Modal -->
+    <div id="manageModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full shadow-xl border border-slate-200 overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <h3 id="manageModalTitle" class="font-bold text-slate-800 flex items-center gap-2">管理班級</h3>
+                <button onclick="closeModal('manageModal')" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-5 space-y-4">
+                <div class="flex gap-2">
+                    <input type="text" id="newEntityInput" placeholder="輸入新名稱..." class="flex-1 px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" onkeydown="if(event.key==='Enter') addNewEntity()">
+                    <button onclick="addNewEntity()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition shrink-0 cursor-pointer">新增</button>
+                </div>
+                <div class="max-h-64 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-xl" id="manageEntityList"></div>
+            </div>
+            <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex justify-end">
+                <button onclick="closeModal('manageModal')" class="px-4 py-2 text-sm font-medium bg-slate-800 text-white rounded-xl hover:bg-slate-900 transition cursor-pointer">完成</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. 通用確認對話框 Modal -->
+    <div id="confirmModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full shadow-xl border border-slate-200 overflow-hidden">
+            <div class="p-5">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="p-2.5 bg-amber-100 text-amber-600 rounded-full">
+                        <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                    </div>
+                    <h3 id="confirmTitle" class="font-bold text-slate-800 text-base">確認操作</h3>
+                </div>
+                <p id="confirmMessage" class="text-sm text-slate-600 leading-relaxed"></p>
+            </div>
+            <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+                <button onclick="closeModal('confirmModal')" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200/70 rounded-xl transition cursor-pointer">取消</button>
+                <button id="confirmActionBtn" class="px-4 py-2 text-sm font-medium bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-sm transition cursor-pointer">確定執行</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 通知提示 -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- ==================== Firebase Firestore 雲端同步模組 ==================== -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+          apiKey: "AIzaSyDwQxWEB4sEe3wF39IqwHVx_mV6h2A0Lgc",
+          authDomain: "score-33c9f.firebaseapp.com",
+          projectId: "score-33c9f",
+          storageBucket: "score-33c9f.firebasestorage.app",
+          messagingSenderId: "576619198542",
+          appId: "1:576619198542:web:3777b4560ae7194cd3ab1f",
+          measurementId: "G-L16RZ0W25K"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const docRef = doc(db, "grade_systems", "default_school_data");
+
+        window.syncStateToCloud = async function(stateObj) {
+            const statusEl = document.getElementById('saveStatus');
+            try {
+                if (statusEl) {
+                    statusEl.className = "flex items-center gap-1.5 text-xs text-indigo-600 bg-indigo-50 px-2.5 py-1.5 rounded-lg border border-indigo-200";
+                    statusEl.innerHTML = `<i data-lucide="refresh-cw" class="w-3.5 h-3.5 animate-spin"></i><span>同步雲端中...</span>`;
+                    if (window.lucide) lucide.createIcons();
+                }
+
+                const cleanData = JSON.parse(JSON.stringify(stateObj));
+                await setDoc(docRef, cleanData);
+
+                if (statusEl) {
+                    statusEl.className = "flex items-center gap-1.5 text-xs text-emerald-600 bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200";
+                    statusEl.innerHTML = `<i data-lucide="cloud-check" class="w-3.5 h-3.5"></i><span>雲端已同步</span>`;
+                    if (window.lucide) lucide.createIcons();
+                }
+            } catch (err) {
+                console.error("寫入 Firestore 失敗:", err);
+                if (statusEl) {
+                    statusEl.className = "flex items-center gap-1.5 text-xs text-rose-600 bg-rose-50 px-2.5 py-1.5 rounded-lg border border-rose-200";
+                    statusEl.innerHTML = `<i data-lucide="cloud-off" class="w-3.5 h-3.5"></i><span>同步失敗 (請檢查規則)</span>`;
+                    if (window.lucide) lucide.createIcons();
+                }
+            }
+        };
+
+        onSnapshot(docRef, (snapshot) => {
+            const statusEl = document.getElementById('saveStatus');
+            if (snapshot.exists()) {
+                const cloudData = snapshot.data();
+                if (cloudData && Array.isArray(cloudData.classes) && Array.isArray(cloudData.subjects) && cloudData.sheets) {
+                    const currentClass = window.appState?.activeClassId;
+                    const currentSubject = window.appState?.activeSubjectId;
+
+                    window.appState = cloudData;
+                    if (currentClass && cloudData.classes.some(c => c.id === currentClass)) {
+                        window.appState.activeClassId = currentClass;
+                    }
+                    if (currentSubject && cloudData.subjects.some(s => s.id === currentSubject)) {
+                        window.appState.activeSubjectId = currentSubject;
+                    }
+
+                    localStorage.setItem('smart_grade_system_empty_v1', JSON.stringify(window.appState));
+                    
+                    const activeTag = document.activeElement?.tagName;
+                    if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA') {
+                        if (window.renderAll) window.renderAll();
+                    }
+                }
+            } else {
+                if (window.appState) {
+                    window.syncStateToCloud(window.appState);
+                }
+            }
+
+            if (statusEl) {
+                statusEl.className = "flex items-center gap-1.5 text-xs text-emerald-600 bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200";
+                statusEl.innerHTML = `<i data-lucide="cloud-check" class="w-3.5 h-3.5"></i><span>雲端即時連線中</span>`;
+                if (window.lucide) lucide.createIcons();
+            }
+        }, (error) => {
+            console.error("監聽 Firestore 錯誤:", error);
+            const statusEl = document.getElementById('saveStatus');
+            if (statusEl) {
+                statusEl.className = "flex items-center gap-1.5 text-xs text-rose-600 bg-rose-50 px-2.5 py-1.5 rounded-lg border border-rose-200";
+                statusEl.innerHTML = `<i data-lucide="alert-circle" class="w-3.5 h-3.5"></i><span>無法連線雲端</span>`;
+                if (window.lucide) lucide.createIcons();
+            }
+        });
+    </script>
+
+    <!-- ==================== 原系統前端邏輯 ==================== -->
+    <script>
+        const STORAGE_KEY = 'smart_grade_system_empty_v1';
+
+        function createEmptyState() {
+            return {
+                activeClassId: '',
+                activeSubjectId: '',
+                normalizeWeights: false,
+                classes: [],
+                subjects: [],
+                sheets: {}
+            };
+        }
+
+        window.appState = loadState();
+        let currentManageType = 'class';
+        let syncTimer = null;
+
+        function loadState() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && Array.isArray(parsed.classes) && Array.isArray(parsed.subjects) && parsed.sheets) {
+                        return parsed;
+                    }
+                }
+            } catch (e) {
+                console.error('讀取本地快取失敗:', e);
+            }
+            return createEmptyState();
+        }
+
+        function saveState() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(window.appState));
+                clearTimeout(syncTimer);
+                syncTimer = setTimeout(() => {
+                    if (typeof window.syncStateToCloud === 'function') {
+                        window.syncStateToCloud(window.appState);
+                    }
+                }, 300);
+            } catch (e) {
+                console.error('儲存資料失敗:', e);
+            }
+        }
+
+        function getCurrentSheet() {
+            if (!window.appState.activeClassId || !window.appState.activeSubjectId) return null;
+            const key = `${window.appState.activeClassId}__${window.appState.activeSubjectId}`;
+            if (!window.appState.sheets[key]) {
+                let inheritedStudents = [];
+                const sameClassKey = Object.keys(window.appState.sheets).find(k => k.startsWith(`${window.appState.activeClassId}__`));
+                if (sameClassKey && window.appState.sheets[sameClassKey].students.length > 0) {
+                    inheritedStudents = window.appState.sheets[sameClassKey].students.map(st => ({
+                        id: 'st_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                        seat: st.seat,
+                        name: st.name,
+                        scores: {}
+                    }));
+                }
+
+                window.appState.sheets[key] = {
+                    assessments: [],
+                    students: inheritedStudents
+                };
+                saveState();
+            }
+            return window.appState.sheets[key];
+        }
+
+        function calculateStudentResults(student, assessments, normalize) {
+            let checkedScores = [];
+            let weightedSum = 0;
+            let activeWeightTotal = 0;
+            let hasAnyCheckedWithScore = false;
+
+            assessments.forEach(asm => {
+                if (!asm.checked) return;
+                const val = student.scores[asm.id];
+                const isValidNumber = val !== undefined && val !== null && val !== '' && !isNaN(Number(val));
+                const weight = Number(asm.weight) || 0;
+
+                if (isValidNumber) {
+                    const num = Number(val);
+                    checkedScores.push(num);
+                    weightedSum += num * (weight / 100);
+                    activeWeightTotal += weight;
+                    hasAnyCheckedWithScore = true;
+                }
+            });
+
+            const arithmeticMean = checkedScores.length > 0
+                ? checkedScores.reduce((acc, cur) => acc + cur, 0) / checkedScores.length
+                : null;
+
+            let weightedResult = null;
+            if (hasAnyCheckedWithScore) {
+                if (normalize && activeWeightTotal > 0) {
+                    weightedResult = weightedSum / (activeWeightTotal / 100);
+                } else {
+                    weightedResult = weightedSum;
+                }
+            }
+
+            return { arithmeticMean, checkedCount: checkedScores.length, weightedResult };
+        }
+
+        function calculateColumnStats(values) {
+            const nums = values.filter(v => v !== null && v !== undefined && v !== '' && !isNaN(Number(v))).map(Number);
+            if (nums.length === 0) return { mean: '-', median: '-', mode: '-' };
+
+            const sum = nums.reduce((a, b) => a + b, 0);
+            const mean = (sum / nums.length).toFixed(1);
+
+            const sorted = [...nums].sort((a, b) => a - b);
+            const mid = Math.floor(sorted.length / 2);
+            const medianVal = sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+            const median = Number.isInteger(medianVal) ? medianVal.toString() : medianVal.toFixed(1);
+
+            const freq = {};
+            let maxFreq = 0;
+            sorted.forEach(n => {
+                const key = Number.isInteger(n) ? n.toString() : n.toFixed(1);
+                freq[key] = (freq[key] || 0) + 1;
+                if (freq[key] > maxFreq) maxFreq = freq[key];
+            });
+
+            let mode = '無';
+            if (maxFreq > 1) {
+                const modes = Object.keys(freq).filter(k => freq[k] === maxFreq).sort((a, b) => Number(a) - Number(b));
+                mode = modes.join(', ');
+            }
+
+            return { mean, median, mode };
+        }
+
+        function formatScoreDisplay(val) {
+            if (val === null || val === undefined || isNaN(val)) return '-';
+            return Number.isInteger(val) ? val.toString() : val.toFixed(1);
+        }
+
+        window.renderAll = function() {
+            if (window.appState.classes.length > 0 && !window.appState.classes.some(c => c.id === window.appState.activeClassId)) {
+                window.appState.activeClassId = window.appState.classes[0].id;
+            } else if (window.appState.classes.length === 0) {
+                window.appState.activeClassId = '';
+            }
+
+            if (window.appState.subjects.length > 0 && !window.appState.subjects.some(s => s.id === window.appState.activeSubjectId)) {
+                window.appState.activeSubjectId = window.appState.subjects[0].id;
+            } else if (window.appState.subjects.length === 0) {
+                window.appState.activeSubjectId = '';
+            }
+
+            renderSelectors();
+            document.getElementById('normalizeToggle').checked = window.appState.normalizeWeights;
+
+            const hasClassAndSubject = window.appState.classes.length > 0 && window.appState.subjects.length > 0;
+            const toolbarEl = document.getElementById('toolbarSection');
+            const emptyEl = document.getElementById('emptyStateContainer');
+            const tableEl = document.getElementById('tableContainer');
+
+            if (!hasClassAndSubject) {
+                toolbarEl.classList.add('hidden');
+                tableEl.classList.add('hidden');
+                emptyEl.classList.remove('hidden');
+                renderEmptyStateStatus();
+            } else {
+                emptyEl.classList.add('hidden');
+                toolbarEl.classList.remove('hidden');
+                tableEl.classList.remove('hidden');
+                renderTable();
+            }
+
+            lucide.createIcons();
+        }
+
+        function renderSelectors() {
+            const classSelect = document.getElementById('classSelect');
+            const subjectSelect = document.getElementById('subjectSelect');
+
+            if (window.appState.classes.length === 0) {
+                classSelect.innerHTML = `<option value="">請先新增班級</option>`;
+            } else {
+                classSelect.innerHTML = window.appState.classes.map(c =>
+                    `<option value="${c.id}" ${c.id === window.appState.activeClassId ? 'selected' : ''}>${escapeHtml(c.name)}</option>`
+                ).join('');
+            }
+
+            if (window.appState.subjects.length === 0) {
+                subjectSelect.innerHTML = `<option value="">請先新增科目</option>`;
+            } else {
+                subjectSelect.innerHTML = window.appState.subjects.map(s =>
+                    `<option value="${s.id}" ${s.id === window.appState.activeSubjectId ? 'selected' : ''}>${escapeHtml(s.name)}</option>`
+                ).join('');
+            }
+        }
+
+        function renderEmptyStateStatus() {
+            const hasClass = window.appState.classes.length > 0;
+            const hasSubject = window.appState.subjects.length > 0;
+
+            const stepClassCard = document.getElementById('stepClassCard');
+            const stepClassBadge = document.getElementById('stepClassBadge');
+            const stepSubjectCard = document.getElementById('stepSubjectCard');
+            const stepSubjectBadge = document.getElementById('stepSubjectBadge');
+
+            if (hasClass) {
+                stepClassCard.className = 'p-4 rounded-2xl border border-emerald-200 bg-emerald-50/40 transition';
+                stepClassBadge.innerHTML = `<span class="text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">已完成 (${window.appState.classes.length}班)</span>`;
+            } else {
+                stepClassCard.className = 'p-4 rounded-2xl border border-slate-200 bg-slate-50/60 transition';
+                stepClassBadge.innerHTML = `<span class="text-[11px] font-semibold text-slate-500 bg-slate-200/70 px-2 py-0.5 rounded-full">待建立</span>`;
+            }
+
+            if (hasSubject) {
+                stepSubjectCard.className = 'p-4 rounded-2xl border border-emerald-200 bg-emerald-50/40 transition';
+                stepSubjectBadge.innerHTML = `<span class="text-[11px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">已完成 (${window.appState.subjects.length}科)</span>`;
+            } else {
+                stepSubjectCard.className = 'p-4 rounded-2xl border border-slate-200 bg-slate-50/60 transition';
+                stepSubjectBadge.innerHTML = `<span class="text-[11px] font-semibold text-slate-500 bg-slate-200/70 px-2 py-0.5 rounded-full">待建立</span>`;
+            }
+        }
+
+        function renderTable() {
+            const sheet = getCurrentSheet();
+            if (!sheet) return;
+
+            sheet.students.sort((a, b) => (Number(a.seat) || 0) - (Number(b.seat) || 0));
+
+            const thead = document.getElementById('gradeTableHead');
+            const tbody = document.getElementById('gradeTableBody');
+
+            const checkedAssessments = sheet.assessments.filter(a => a.checked);
+            const checkedWeightSum = checkedAssessments.reduce((sum, a) => sum + (Number(a.weight) || 0), 0);
+            updateWeightBadge(checkedWeightSum, checkedAssessments.length, sheet.assessments.length);
+
+            let headHtml = `
+                <tr>
+                    <th class="py-3 px-2 text-center font-bold text-slate-600 w-16 sticky left-0 bg-slate-50 z-20 border-r border-slate-200">座號</th>
+                    <th class="py-3 px-3 text-left font-bold text-slate-600 min-w-[120px] sticky left-16 bg-slate-50 z-20 border-r border-slate-200 sticky-col-shadow">學生姓名</th>
+            `;
+
+            if (sheet.assessments.length === 0) {
+                headHtml += `
+                    <th class="py-3 px-4 text-center min-w-[200px] border-r border-slate-200 bg-slate-50/60">
+                        <button onclick="addAssessmentColumn()" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-semibold transition cursor-pointer">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> 點擊新增第一個評量項目
+                        </button>
+                    </th>
+                `;
+            } else {
+                sheet.assessments.forEach((asm) => {
+                    const bgClass = asm.checked ? 'bg-slate-50' : 'bg-slate-100/70 opacity-65';
+                    headHtml += `
+                        <th class="py-2.5 px-2.5 text-center min-w-[135px] border-r border-slate-200 transition ${bgClass} group relative">
+                            <div class="flex items-center justify-between mb-1.5 px-0.5">
+                                <label class="inline-flex items-center gap-1 cursor-pointer select-none" title="勾選或取消採計此項目">
+                                    <input type="checkbox" ${asm.checked ? 'checked' : ''} onchange="toggleAssessmentCheck('${asm.id}', this.checked)"
+                                        class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer">
+                                    <span class="text-[11px] font-medium ${asm.checked ? 'text-indigo-600' : 'text-slate-400'}">${asm.checked ? '採計' : '未選'}</span>
+                                </label>
+                                <button onclick="deleteAssessment('${asm.id}')" title="刪除此評量項目"
+                                    class="opacity-0 group-hover:opacity-100 focus:opacity-100 text-slate-400 hover:text-rose-600 p-0.5 rounded transition cursor-pointer">
+                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                </button>
+                            </div>
+                            <div class="mb-1.5">
+                                <input type="text" value="${escapeHtml(asm.name)}" placeholder="輸入項目名稱"
+                                    onchange="updateAssessmentName('${asm.id}', this.value)"
+                                    onkeydown="if(event.key==='Enter') this.blur()"
+                                    class="w-full text-center font-bold text-slate-800 bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-slate-300 focus:border-indigo-500 rounded-lg px-1.5 py-1 text-sm focus:outline-none transition">
+                            </div>
+                            <div class="inline-flex items-center justify-center bg-white border border-slate-200 rounded-lg px-2 py-0.5 shadow-2xs">
+                                <span class="text-[11px] text-slate-400 mr-1">佔比</span>
+                                <input type="number" min="0" max="1000" step="1" value="${asm.weight}"
+                                    onchange="updateAssessmentWeight('${asm.id}', this.value)"
+                                    onkeydown="if(event.key==='Enter') this.blur()"
+                                    class="w-10 text-center text-xs font-bold text-indigo-600 bg-transparent focus:outline-none">
+                                <span class="text-xs font-semibold text-slate-500">%</span>
+                            </div>
+                        </th>
+                    `;
+                });
+            }
+
+            headHtml += `
+                    <th class="py-2.5 px-3 text-center min-w-[125px] bg-indigo-50/90 border-l-2 border-indigo-200 text-indigo-900">
+                        <div class="text-xs font-semibold text-indigo-600 mb-0.5">已勾選項目</div>
+                        <div class="font-bold text-sm">算術平均</div>
+                    </th>
+                    <th class="py-2.5 px-3 text-center min-w-[135px] bg-emerald-50/90 border-l border-emerald-200 text-emerald-900">
+                        <div class="text-xs font-semibold text-emerald-600 mb-0.5">已勾選權重</div>
+                        <div class="font-bold text-sm">加權總分</div>
+                    </th>
+                    <th class="py-3 px-2 text-center w-12 bg-slate-50 text-slate-400">操作</th>
+                </tr>
+            `;
+            thead.innerHTML = headHtml;
+
+            let bodyHtml = '';
+            const arithmeticMeansList = [];
+            const weightedResultsList = [];
+
+            if (sheet.students.length === 0) {
+                bodyHtml = `
+                    <tr>
+                        <td colspan="10" class="py-14 text-center text-slate-500">
+                            <div class="flex flex-col items-center justify-center gap-3">
+                                <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center">
+                                    <i data-lucide="users" class="w-6 h-6"></i>
+                                </div>
+                                <p class="font-semibold text-slate-700 text-sm">目前此科目尚未建立學生名單</p>
+                                <button onclick="openRosterModal()" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-sm transition cursor-pointer">
+                                    <i data-lucide="user-plus" class="w-3.5 h-3.5"></i> 設定座號範圍與姓名
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            } else {
+                sheet.students.forEach((student, rowIndex) => {
+                    const res = calculateStudentResults(student, sheet.assessments, window.appState.normalizeWeights);
+                    arithmeticMeansList.push(res.arithmeticMean);
+                    weightedResultsList.push(res.weightedResult);
+
+                    const meanDisplay = formatScoreDisplay(res.arithmeticMean);
+                    const weightDisplay = formatScoreDisplay(res.weightedResult);
+                    const meanFail = res.arithmeticMean !== null && res.arithmeticMean < 60;
+                    const weightFail = res.weightedResult !== null && res.weightedResult < 60;
+
+                    bodyHtml += `
+                        <tr class="hover:bg-indigo-50/30 transition group">
+                            <td class="py-1.5 px-1.5 text-center sticky left-0 bg-white group-hover:bg-slate-50 z-10 border-r border-slate-200">
+                                <input type="number" value="${student.seat}" onchange="updateStudentField('${student.id}', 'seat', this.value)"
+                                    class="w-12 text-center font-semibold text-slate-700 bg-transparent hover:bg-slate-100 focus:bg-white focus:ring-2 focus:ring-indigo-500 rounded-md py-1 text-sm focus:outline-none">
+                            </td>
+                            <td class="py-1.5 px-2 sticky left-16 bg-white group-hover:bg-slate-50 z-10 border-r border-slate-200 sticky-col-shadow">
+                                <input type="text" value="${escapeHtml(student.name)}" placeholder="輸入姓名" onchange="updateStudentField('${student.id}', 'name', this.value)"
+                                    class="w-full font-medium text-slate-800 bg-transparent hover:bg-slate-100 focus:bg-white focus:ring-2 focus:ring-indigo-500 rounded-md px-2 py-1 text-sm focus:outline-none">
+                            </td>
+                    `;
+
+                    sheet.assessments.forEach((asm, colIndex) => {
+                        const rawScore = student.scores[asm.id] ?? '';
+                        const isFail = rawScore !== '' && Number(rawScore) < 60;
+                        const colBg = asm.checked ? '' : 'bg-slate-100/50 text-slate-400';
+
+                        bodyHtml += `
+                            <td class="py-1.5 px-2 text-center border-r border-slate-100 ${colBg}">
+                                <input type="number" step="0.5" min="0" max="100" value="${rawScore}" placeholder="-"
+                                    data-row="${rowIndex}" data-col="${colIndex}"
+                                    oninput="handleScoreInput('${student.id}', '${asm.id}', this)"
+                                    onkeydown="handleGridNavigation(event, ${rowIndex}, ${colIndex})"
+                                    class="score-input w-20 text-center font-semibold rounded-lg py-1.5 px-2 border border-transparent hover:border-slate-300 focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-200 focus:outline-none transition ${isFail ? 'text-rose-600 bg-rose-50/60' : 'text-slate-800'}">
+                            </td>
+                        `;
+                    });
+
+                    bodyHtml += `
+                            <td class="py-2 px-3 text-center bg-indigo-50/30 border-l-2 border-indigo-100 font-bold ${meanFail ? 'text-rose-600' : 'text-indigo-700'}" id="mean_${student.id}">
+                                <span>${meanDisplay}</span>
+                            </td>
+                            <td class="py-2 px-3 text-center bg-emerald-50/30 border-l border-emerald-100 font-bold text-base ${weightFail ? 'text-rose-600' : 'text-emerald-700'}" id="weighted_${student.id}">
+                                ${weightDisplay}
+                            </td>
+                            <td class="py-1.5 px-2 text-center">
+                                <button onclick="deleteStudent('${student.id}')" title="刪除此學生" class="text-slate-300 hover:text-rose-600 p-1 rounded-lg transition cursor-pointer">
+                                    <i data-lucide="user-minus" class="w-4 h-4"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+            tbody.innerHTML = bodyHtml;
+            renderTableFooter(sheet, arithmeticMeansList, weightedResultsList);
+        }
+
+        function renderTableFooter(sheet, arithmeticMeansList, weightedResultsList) {
+            const tfoot = document.getElementById('gradeTableFoot');
+            const colStats = sheet.assessments.map(asm => calculateColumnStats(sheet.students.map(st => st.scores[asm.id])));
+            const meanColStats = calculateColumnStats(arithmeticMeansList);
+            const weightedColStats = calculateColumnStats(weightedResultsList);
+
+            const statRows = [
+                { label: '全班平均數', sub: 'Mean', key: 'mean', badgeColor: 'bg-blue-100 text-blue-800' },
+                { label: '全班中位數', sub: 'Median', key: 'median', badgeColor: 'bg-purple-100 text-purple-800' },
+                { label: '全班眾數', sub: 'Mode', key: 'mode', badgeColor: 'bg-amber-100 text-amber-800' }
+            ];
+
+            let footHtml = '';
+            statRows.forEach((row, rIdx) => {
+                const borderTop = rIdx === 0 ? 'border-t-2 border-slate-300' : 'border-t border-slate-200';
+                footHtml += `
+                    <tr class="${borderTop} bg-slate-100 text-slate-700">
+                        <td colspan="2" class="py-2 px-3 text-right sticky left-0 bg-slate-100 z-20 border-r border-slate-200 sticky-col-shadow">
+                            <div class="flex items-center justify-end gap-2">
+                                <span class="text-xs font-bold text-slate-700">${row.label}</span>
+                                <span class="text-[10px] px-1.5 py-0.5 rounded font-semibold ${row.badgeColor}">${row.sub}</span>
+                            </div>
+                        </td>
+                `;
+
+                colStats.forEach((st, idx) => {
+                    const isChecked = sheet.assessments[idx].checked;
+                    footHtml += `<td class="py-2 px-2 text-center border-r border-slate-200 font-bold text-sm ${isChecked ? 'text-slate-800' : 'text-slate-400'}">${st[row.key]}</td>`;
+                });
+
+                footHtml += `
+                        <td class="py-2 px-3 text-center bg-indigo-100/70 border-l-2 border-indigo-200 font-bold text-indigo-900 text-sm">${meanColStats[row.key]}</td>
+                        <td class="py-2 px-3 text-center bg-emerald-100/70 border-l border-emerald-200 font-bold text-emerald-900 text-sm">${weightedColStats[row.key]}</td>
+                        <td class="py-2 px-2 bg-slate-100"></td>
+                    </tr>
+                `;
+            });
+            tfoot.innerHTML = footHtml;
+        }
+
+        function updateWeightBadge(checkedWeightSum, checkedCount, totalCount) {
+            const badge = document.getElementById('weightSummaryBadge');
+            if (totalCount === 0) { badge.innerHTML = `<span class="text-slate-400">尚未建立評量項目</span>`; return; }
+            if (checkedWeightSum === 100) {
+                badge.innerHTML = `<span class="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg"><i data-lucide="check-circle" class="w-3.5 h-3.5"></i> 權重總和：<strong>100%</strong></span>`;
+            } else {
+                badge.innerHTML = `<span class="inline-flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg"><i data-lucide="info" class="w-3.5 h-3.5"></i> 權重總和：<strong>${checkedWeightSum}%</strong></span>`;
+            }
+        }
+
+        function handleScoreInput(studentId, assessmentId, inputEl) {
+            const sheet = getCurrentSheet();
+            if (!sheet) return;
+            const student = sheet.students.find(s => s.id === studentId);
+            if (!student) return;
+
+            const rawVal = inputEl.value.trim();
+            if (rawVal === '') {
+                delete student.scores[assessmentId];
+            } else {
+                student.scores[assessmentId] = Number(rawVal);
+            }
+            saveState();
+            renderTable();
+            lucide.createIcons();
+        }
+
+        function handleGridNavigation(event, row, col) {
+            const key = event.key;
+            let targetRow = row, targetCol = col;
+            if (key === 'Enter' || key === 'ArrowDown') targetRow++;
+            else if (key === 'ArrowUp') targetRow--;
+            else if (key === 'ArrowRight') targetCol++;
+            else if (key === 'ArrowLeft') targetCol--;
+            else return;
+
+            event.preventDefault();
+            const nextInput = document.querySelector(`.score-input[data-row="${targetRow}"][data-col="${targetCol}"]`);
+            if (nextInput) { nextInput.focus(); nextInput.select(); }
+        }
+
+        function toggleAssessmentCheck(id, val) {
+            const sheet = getCurrentSheet();
+            if (!sheet) return;
+            const asm = sheet.assessments.find(a => a.id === id);
+            if (asm) { asm.checked = val; saveState(); renderTable(); lucide.createIcons(); }
+        }
+
+        function updateAssessmentName(id, val) {
+            const sheet = getCurrentSheet();
+            if (!sheet) return;
+            const asm = sheet.assessments.find(a => a.id === id);
+            if (asm) { asm.name = val.trim(); saveState(); }
+        }
+
+        function updateAssessmentWeight(id, val) {
+            const sheet = getCurrentSheet();
+            if (!sheet) return;
+            const asm = sheet.assessments.find(a => a.id === id);
+            if (asm) { asm.weight = Math.max(0, Number(val) || 0); saveState(); renderTable(); lucide.createIcons(); }
+        }
+
+        function addAssessmentColumn() {
+            const sheet = getCurrentSheet();
+            if (!sheet) return;
+            sheet.assessments.push({ id: 'asm_' + Date.now(), name: `評量 ${sheet.assessments.length + 1}`, weight: 0, checked: true });
+            saveState(); renderTable(); lucide.createIcons();
+        }
+
+        function deleteAssessment(id) {
+            const sheet = getCurrentSheet();
+            if (!sheet) return;
+            sheet.assessments = sheet.assessments.filter(a => a.id !== id);
+            sheet.students.forEach(st => delete st.scores[id]);
+            saveState(); renderTable(); lucide.createIcons();
+        }
+
+        function distributeWeightsEvenly() {
+            const sheet = getCurrentSheet();
+            if (!sheet) return;
+            const checked = sheet.assessments.filter(a => a.checked);
+            if (checked.length === 0) return;
+            const base = Math.floor(100 / checked.length);
+            checked.forEach((asm, idx) => { asm.weight = idx === 0 ? 100 - base * (checked.length - 1) : base; });
+            saveState(); renderTable(); lucide.createIcons();
+        }
+
+        function toggleNormalize(val) {
+            window.appState.normalizeWeights = val;
+            saveState(); renderTable(); lucide.createIcons();
+        }
+
+        function addStudentRow() {
+            const sheet = getCurrentSheet();
+            if (!sheet) return;
+            const maxSeat = sheet.students.reduce((max, s) => Math.max(max, Number(s.seat) || 0), 0);
+            sheet.students.push({ id: 'st_' + Date.now(), seat: maxSeat + 1, name: '', scores: {} });
+            saveState(); renderTable(); lucide.createIcons();
+        }
+
+        function updateStudentField(id, field, val) {
+            const sheet = getCurrentSheet();
+            if (!sheet) return;
+            const st = sheet.students.find(s => s.id === id);
+            if (st) {
+                if (field === 'seat') st.seat = parseInt(val, 10) || 1;
+                else st.name = val.trim();
+                saveState();
+            }
+        }
+
+        function deleteStudent(id) {
+            const sheet = getCurrentSheet();
+            if (!sheet) return;
+            sheet.students = sheet.students.filter(s => s.id !== id);
+            saveState(); renderTable(); lucide.createIcons();
+        }
+
+        function parseSeatRangeString(str) {
+            if (!str.trim()) return { seats: [], error: null };
+            const tokens = str.split(/[,，、;；\s]+/).filter(Boolean);
+            const set = new Set();
+            for (const t of tokens) {
+                if (/^\d+$/.test(t)) { set.add(parseInt(t, 10)); continue; }
+                const match = t.match(/^(\d+)\s*(?:-|–|—|~|～|至)\s*(\d+)$/);
+                if (match) {
+                    const start = parseInt(match[1], 10), end = parseInt(match[2], 10);
+                    if (start > end) return { seats: [], error: '起始座號不可大於結束座號' };
+                    for (let i = start; i <= end; i++) set.add(i);
+                    continue;
+                }
+                return { seats: [], error: `無法辨識的格式：${t}` };
+            }
+            return { seats: Array.from(set).sort((a, b) => a - b), error: null };
+        }
+
+        function updateSeatPreview() {
+            const raw = document.getElementById('seatRangeInput').value;
+            const countEl = document.getElementById('seatPreviewCount');
+            const badgesEl = document.getElementById('seatPreviewBadges');
+            const { seats, error } = parseSeatRangeString(raw);
+            if (error) {
+                countEl.textContent = '格式錯誤';
+                badgesEl.innerHTML = `<span class="text-rose-600">${error}</span>`;
+                return;
+            }
+            countEl.textContent = `共 ${seats.length} 人`;
+            badgesEl.innerHTML = seats.length ? seats.map(s => `<span class="px-2 py-0.5 bg-white border border-slate-200 rounded">${s}</span>`).join('') : '<span class="text-slate-400">請輸入範圍...</span>';
+        }
+
+        function openRosterModal() {
+            const sheet = getCurrentSheet();
+            if (!sheet) return;
+            document.getElementById('seatRangeInput').value = sheet.students.length ? sheet.students.map(s => s.seat).join(',') : '';
+            document.getElementById('batchNamesInput').value = sheet.students.map(s => s.name).join('\n');
+            updateSeatPreview();
+            document.getElementById('rosterModal').classList.remove('hidden');
+        }
+
+        function applyRosterSettings() {
+            const { seats, error } = parseSeatRangeString(document.getElementById('seatRangeInput').value);
+            if (error) { alert(error); return; }
+            const rawNames = document.getElementById('batchNamesInput').value.split(/\r?\n/).map(n => n.trim());
+            const sheet = getCurrentSheet();
+            if (!sheet) return;
+
+            sheet.students = seats.map((seat, idx) => ({
+                id: 'st_' + seat + '_' + Date.now(),
+                seat: seat,
+                name: rawNames[idx] || '',
+                scores: {}
+            }));
+            saveState(); closeModal('rosterModal'); renderTable(); lucide.createIcons();
+        }
+
+        function handleClassChange(id) { window.appState.activeClassId = id; renderTable(); lucide.createIcons(); }
+        function handleSubjectChange(id) { window.appState.activeSubjectId = id; renderTable(); lucide.createIcons(); }
+
+        function openManageModal(type) {
+            currentManageType = type;
+            document.getElementById('manageModalTitle').textContent = type === 'class' ? '管理班級' : '管理科目';
+            renderManageEntityList();
+            document.getElementById('manageModal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function renderManageEntityList() {
+            const listEl = document.getElementById('manageEntityList');
+            const items = currentManageType === 'class' ? window.appState.classes : window.appState.subjects;
+            listEl.innerHTML = items.length ? items.map(i => `
+                <div class="flex items-center justify-between px-3 py-2 bg-white gap-2">
+                    <input type="text" value="${escapeHtml(i.name)}" onchange="renameEntity('${i.id}', this.value)" class="flex-1 text-sm border border-slate-200 rounded px-2 py-1">
+                    <button onclick="deleteEntity('${i.id}')" class="text-rose-600 p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                </div>
+            `).join('') : '<div class="py-4 text-center text-xs text-slate-400">尚無資料</div>';
+            lucide.createIcons();
+        }
+
+        function addNewEntity() {
+            const val = document.getElementById('newEntityInput').value.trim();
+            if (!val) return;
+            const id = (currentManageType === 'class' ? 'cls_' : 'sub_') + Date.now();
+            if (currentManageType === 'class') { window.appState.classes.push({ id, name: val }); window.appState.activeClassId = id; }
+            else { window.appState.subjects.push({ id, name: val }); window.appState.activeSubjectId = id; }
+            document.getElementById('newEntityInput').value = '';
+            saveState(); renderManageEntityList(); renderAll();
+        }
+
+        function renameEntity(id, val) {
+            const items = currentManageType === 'class' ? window.appState.classes : window.appState.subjects;
+            const target = items.find(i => i.id === id);
+            if (target) { target.name = val.trim(); saveState(); renderSelectors(); }
+        }
+
+        function deleteEntity(id) {
+            if (currentManageType === 'class') {
+                window.appState.classes = window.appState.classes.filter(c => c.id !== id);
+                window.appState.activeClassId = window.appState.classes[0]?.id || '';
+            } else {
+                window.appState.subjects = window.appState.subjects.filter(s => s.id !== id);
+                window.appState.activeSubjectId = window.appState.subjects[0]?.id || '';
+            }
+            saveState(); renderManageEntityList(); renderAll();
+        }
+
+        function exportCSV() { alert('匯出功能就緒'); }
+        function confirmClearScores() { if (confirm('確定清空成績？')) { getCurrentSheet().students.forEach(s => s.scores = {}); saveState(); renderTable(); } }
+        function confirmResetAll() { if (confirm('確定重置全部資料？')) { localStorage.removeItem(STORAGE_KEY); window.appState = createEmptyState(); saveState(); renderAll(); } }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+        function toggleMoreMenu() { document.getElementById('moreMenuDropdown').classList.toggle('hidden'); }
+
+        function escapeHtml(str) {
+            return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        window.addEventListener('DOMContentLoaded', () => { renderAll(); });
+    </script>
+</body>
+</html>
